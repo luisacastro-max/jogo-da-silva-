@@ -1,153 +1,169 @@
 class Edge:
-    def __init__(self, target, weight):
+    def __init__(self, target, weight, item_required=None):
         self.target = target
         self.weight = weight
-
+        self.item_required = item_required # Item necessário para passar por esta aresta
+        
 
 class Vertex:
-    def __init__(self, name, description, boss=None):
+    def __init__(self, name, description="", item_present=None, special_message=None):
         self.name = name
         self.description = description
-        self.adjacents = [None] * 10  # até 10 conexões
-        self.adj_count = 0
-        self.items = [None] * 5       # até 5 itens no local
-        self.item_count = 0
-        self.boss = boss
-
-    def addEdge(self, target, weight):
-        if self.adj_count < 10:
-            self.adjacents[self.adj_count] = Edge(target, weight)
-            self.adj_count += 1
-
-    def addItem(self, item):
-        if self.item_count < 5:
-            self.items[self.item_count] = item
-            self.item_count += 1
-
-    def removeItem(self, index):
-        if 0 <= index < self.item_count:
-            for i in range(index, self.item_count - 1):
-                self.items[i] = self.items[i + 1]
-            self.items[self.item_count - 1] = None
-            self.item_count -= 1
-
+        self.adjacents = []
+        self.item_present = item_present # Se este local tem um item para o jogador pegar
+        self.special_message = special_message # Mensagem especial ao entrar neste local
+        
+    def addEdge(self, target, weight, item_required=None):
+        self.adjacents.append(Edge(target, weight, item_required))
+        
 
 class Graph:
     def __init__(self):
-        self.vertices = [None] * 10  # até 10 locais
-        self.vertex_count = 0
+        self.vertices = {}
+        
+    def addVertex(self, name, description="", item_present=None, special_message=None):
+        if name not in self.vertices:
+            self.vertices[name] = Vertex(name, description, item_present, special_message)
+            
+    def addEdge(self, source, target, weight, item_required=None):
+        # Garante que os vértices existam antes de adicionar a aresta
+        if source not in self.vertices:
+            self.addVertex(source)
+        if target not in self.vertices:
+            self.addVertex(target)
+        self.vertices[source].addEdge(target, weight, item_required) 
+    
+    def findPath(self, graph, source, target, visited=None, path=None):
+        # Inicializa visited e path se forem None para a primeira chamada
+        if visited is None:
+            visited = set()
+        if path is None:
+            path = []
 
-    def addVertex(self, name, description, boss=None):
-        if self.vertex_count < 10:
-            if self.getVertex(name) is None:
-                self.vertices[self.vertex_count] = Vertex(name, description, boss)
-                self.vertex_count += 1
+        # Evita ciclos infinitos em grafos com ciclos
+        if source in visited:
+            return
+        
+        visited.add(source)
+        path.append(source)
+        
+        # Se encontrou o alvo, retorna uma cópia do caminho
+        if source == target:
+            return path.copy()
+            
+        # Explora os vizinhos
+        for edge in self.vertices[source].adjacents:
+            result = self.findPath(graph, edge.target, target, visited, path)
+            if result:
+                return result
+        
+        # Se não encontrou caminho por esta ramificação, remove o último vértice
+        path.pop()
 
-    def addEdge(self, source, target, weight):
-        src = self.getVertex(source)
-        tgt = self.getVertex(target)
-        if src and tgt:
-            src.addEdge(target, weight)
+# --- Lógica do Jogo ---
 
-    def getVertex(self, name):
-        for i in range(self.vertex_count):
-            if self.vertices[i].name == name:
-                return self.vertices[i]
-        return None
-class Game:
-    def __init__(self):
-        self.graph = Graph()
-        self.inventory = [None] * 10
-        self.inv_count = 0
-        self.current = None
+def run_game():
+    game_graph = Graph()
 
-    def setup(self):
-        self.graph.addVertex("Vila", "Você está na vila central com casas de pedra.")
-        self.graph.addVertex("Floresta", "Uma floresta escura cheia de ruídos...", boss="Lobisomem")
-        self.graph.addVertex("Caverna", "Uma caverna fria e úmida.", boss="Troll")
-        self.graph.addVertex("Castelo", "Um castelo abandonado e assombrado.", boss="Cavaleiro Negro")
+    # Criando o Cenário do Jogo (Vértices e Arestas)
+    # Cada vértice representa um local no jogo, com uma descrição e, opcionalmente, um item.
+    game_graph.addVertex("Entrada da Floresta", "Você está na entrada de uma floresta densa. O cheiro de terra molhada paira no ar.")
+    game_graph.addVertex("Clareira Secreta", "Uma clareira iluminada pelo sol, com flores raras e um riacho murmurante.")
+    game_graph.addVertex("Caverna Sombria", "A entrada de uma caverna escura e úmida. Sons estranhos ecoam lá de dentro.", item_present="Amuleto Antigo") 
+    game_graph.addVertex("Montanha Nebulosa", "Um pico rochoso coberto por uma névoa espessa. A vista é limitada, mas o ar é gélido.", item_present="Chave Antiga", special_message="Você sente uma presença maligna... Um Guardião da Montanha bloqueia o caminho para o leste!") 
+    game_graph.addVertex("Templo Antigo", "As ruínas de um templo esquecido, com símbolos gravados nas pedras. Parece haver algo brilhando lá dentro...", item_present="Tesouro")
+    game_graph.addVertex("Lago Calmo", "Um lago de águas cristalinas, refletindo o céu. Pequenos peixes nadam tranquilamente.")
 
-        self.graph.addEdge("Vila", "Floresta", 1)
-        self.graph.addEdge("Vila", "Caverna", 1)
-        self.graph.addEdge("Floresta", "Castelo", 1)
-        self.graph.addEdge("Caverna", "Castelo", 1)
-        self.graph.addEdge("Castelo", "Vila", 1)
-
-        self.graph.getVertex("Floresta").addItem("Espada")
-        self.graph.getVertex("Caverna").addItem("Poção")
-        self.graph.getVertex("Castelo").addItem("Chave")
-
-        self.current = self.graph.getVertex("Vila")
-
-    def run(self):
-        while True:
-            print(f"\n📍 Local: {self.current.name}")
-            print(self.current.description)
-
-            # Combate com boss
-            if self.current.boss:
-                print(f"⚔️ Um inimigo aparece: {self.current.boss}")
-                if self.hasItem("Espada"):
-                    print("✅ Você derrotou o boss com sua espada!")
-                    self.current.boss = None
-                
-                else:
-                   print("❌ Você precisa de uma espada. Escolha outro caminho ou pegue um item.")
+    # Definindo as conexões (arestas) entre os locais.
+    # O 'weight' é o nome do caminho. 'item_required' indica um item necessário para passar.
+    game_graph.addEdge("Entrada da Floresta", "Clareira Secreta", "Trilha Leste")
+    game_graph.addEdge("Clareira Secreta", "Entrada da Floresta", "Trilha Oeste") 
+    game_graph.addEdge("Entrada da Floresta", "Caverna Sombria", "Caminho Rochoso")
+    game_graph.addEdge("Caverna Sombria", "Entrada da Floresta", "Voltar")
+    game_graph.addEdge("Clareira Secreta", "Lago Calmo", "Atravessar Rio")
+    game_graph.addEdge("Lago Calmo", "Clareira Secreta", "Voltar")
+    
+    game_graph.addEdge("Caverna Sombria", "Montanha Nebulosa", "Passagem Estreita")
+    game_graph.addEdge("Montanha Nebulosa", "Caverna Sombria", "Descer")
+    
+    # Caminho protegido pelo "boss" que exige o "Amuleto Antigo"
+    game_graph.addEdge("Montanha Nebulosa", "Templo Antigo", "Caminho Secreto", item_required="Amuleto Antigo") 
+    game_graph.addEdge("Templo Antigo", "Montanha Nebulosa", "Voltar") 
+    
+    # Caminho alternativo que exige a "Chave Antiga"
+    game_graph.addEdge("Lago Calmo", "Templo Antigo", "Ponte Quebrada", item_required="Chave Antiga") 
+    game_graph.addEdge("Templo Antigo", "Lago Calmo", "Voltar Pela Ponte")
 
 
-            # Mostrar itens
-            print("🎁 Itens disponíveis:")
-            for i in range(self.current.item_count):
-                print(f"{i+1}. {self.current.items[i]}")
+    current_location = "Entrada da Floresta" # Onde o jogador começa sua jornada
+    player_items = [] # Lista para armazenar os itens que o jogador coletou
 
-            # Mostrar caminhos
-            print("\n🧭 Caminhos disponíveis:")
-            for i in range(self.current.adj_count):
-                print(f"{i+1}. {self.current.adjacents[i].target}")
+    print("Bem-vindo ao Jogo de Exploração do Grafo!")
+    print("Seu objetivo é encontrar o 'Tesouro' no Templo Antigo!")
+    print("Para chegar lá, você precisará ser esperto e encontrar os itens certos!")
 
-            print("\n1. Mover")
-            print("2. Coletar item")
-            print("3. Ver inventário")
-            print("4. Sair")
+    # Loop principal do jogo: continua até o jogador encontrar o tesouro ou sair
+    while True:
+        print("\n" + "="*40) # Separador visual para cada turno
+        print(f"Local: {game_graph.vertices[current_location].name}")
+        print(f"Descrição: {game_graph.vertices[current_location].description}")
+        
+        # Exibe uma mensagem especial se o local tiver uma
+        if game_graph.vertices[current_location].special_message:
+            print(f"\n[EVENTO]: {game_graph.vertices[current_location].special_message}")
 
-            op = input("Escolha uma opção: ")
+        # Verifica se há um item para coletar no local atual
+        if game_graph.vertices[current_location].item_present:
+            item = game_graph.vertices[current_location].item_present
+            if item not in player_items: # Só adiciona se o jogador ainda não tiver o item
+                player_items.append(item)
+                print(f"\n*** Você encontrou: {item}! Ele foi adicionado ao seu inventário. ***")
+                game_graph.vertices[current_location].item_present = None # Remove o item do local
+        
+        # Verifica se o jogador já coletou o "Tesouro" para encerrar o jogo
+        if "Tesouro" in player_items:
+            print("\n*** PARABÉNS! Você encontrou o TESOURO ANTIGO! ***")
+            print("Sua aventura termina aqui. Obrigado por jogar!")
+            break
+            
+        # Mostra os itens que o jogador possui
+        print("\nSeus itens:", ", ".join(player_items) if player_items else "Nenhum")
 
-            if op == "1":
-                destino = int(input("Digite o número do destino: ")) - 1
-                if 0 <= destino < self.current.adj_count:
-                    nome_destino = self.current.adjacents[destino].target
-                    self.current = self.graph.getVertex(nome_destino)
-                else:
-                    print("❌ Caminho inválido.")
-            elif op == "2":
-                if self.current.item_count > 0:
-                    item = self.current.items[0]
-                    if self.inv_count < 10:
-                        self.inventory[self.inv_count] = item
-                        self.inv_count += 1
-                        self.current.removeItem(0)
-                        print(f"✅ Você coletou: {item}")
-                    else:
-                        print("❌ Inventário cheio!")
-                else:
-                    print("❌ Nenhum item aqui.")
-            elif op == "3":
-                print("🎒 Inventário:")
-                if self.inv_count == 0:
-                    print("- vazio -")
-                for i in range(self.inv_count):
-                    print(f"- {self.inventory[i]}")
-            elif op == "4":
-                print("👋 Você saiu do jogo.")
-                break
+        print("\nPara onde você quer ir?")
+        
+        options = {} # Dicionário para mapear as escolhas do jogador (números) para as arestas
+        available_edges = [] # Lista das arestas que o jogador pode realmente usar
+
+        # Percorre todas as arestas adjacentes ao local atual
+        for edge in game_graph.vertices[current_location].adjacents:
+            # Verifica se a aresta exige um item e se o jogador tem esse item
+            if edge.item_required and edge.item_required not in player_items:
+                # Se o item necessário não estiver no inventário, informa que o caminho está bloqueado
+                print(f" (BLOQUEADO) '{edge.weight}' para '{edge.target}': Você precisa de '{edge.item_required}' para passar!")
             else:
-                print("❌ Opção inválida.")
+                # Se o caminho estiver liberado, adiciona à lista de opções disponíveis
+                available_edges.append(edge)
+        
+        # Numera e exibe as opções de caminhos disponíveis para o jogador
+        for i, edge in enumerate(available_edges):
+            option_number = i + 1
+            options[str(option_number)] = edge # Armazena a aresta completa para a escolha
+            print(f"{option_number}. Seguir '{edge.weight}' para '{edge.target}'")
+        
+        print("0. Sair do jogo") # Opção para sair do jogo
 
-    def hasItem(self, name):
-        for i in range(self.inv_count):
-            if self.inventory[i] == name:
-                return True
-        return False
-jogo = Game()
-jogo.setup()
-jogo.run()
+        choice = input("Escolha uma opção: ") # Pede a entrada do jogador
+
+        if choice == "0":
+            print("Saindo do jogo. Até a próxima!")
+            break
+        elif choice in options:
+            chosen_edge = options[choice]
+            # Confirma a movimentação para o novo local
+            current_location = chosen_edge.target
+        else:
+            print("Opção inválida. Por favor, escolha um número válido.")
+
+# Esta linha garante que run_game() só será chamada quando o script for executado diretamente.
+if __name__ == "__main__":
+    run_game()
